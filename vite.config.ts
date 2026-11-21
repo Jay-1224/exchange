@@ -1,3 +1,4 @@
+
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import fs from 'fs';
@@ -34,6 +35,9 @@ export default defineConfig(() => {
       },
     },
     server: {
+      allowedHosts: [
+        'publish-now-52--6sih9v2i.cluster-0.preview.emergentcf.cloud',
+      ],
       // HMR is disabled in AI Studio via DISABLE_HMR env var.
       // Do not modify—file watching is disabled to prevent flickering during agent edits.
       hmr: process.env.DISABLE_HMR !== 'true',
