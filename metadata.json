@@ -1,0 +1,8 @@
+{
+  "name": "Remix Remix NWS STOCK EXCHANGE",
+  "description": "NWS Stock Exchange — The Future of Trading. Indian equity market platform with live synchronized prices, candlestick charts, investor trading, and an admin-controlled LED market board.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

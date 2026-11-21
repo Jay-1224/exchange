@@ -1,0 +1,525 @@
+{
+  "entities": {
+    "Company": {
+      "title": "Company",
+      "description": "Listed Indian company on NWS Stock Exchange",
+      "type": "object",
+      "properties": {
+        "symbol": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 12,
+          "pattern": "^[A-Z0-9]+$",
+          "description": "Stock ticker symbol"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 100,
+          "description": "Full company name"
+        },
+        "sector": {
+          "type": "string",
+          "enum": [
+            "Banking",
+            "Technology",
+            "Automobile",
+            "Energy",
+            "FMCG",
+            "Healthcare",
+            "Infrastructure",
+            "Telecommunications",
+            "Manufacturing"
+          ]
+        },
+        "startingPrice": {
+          "type": "number",
+          "description": "IPO/base starting price in INR"
+        },
+        "previousClose": {
+          "type": "number",
+          "description": "Previous session closing price in INR"
+        },
+        "description": {
+          "type": "string",
+          "minLength": 10,
+          "maxLength": 600
+        },
+        "headquarters": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 80
+        },
+        "marketCapCr": {
+          "type": "number"
+        },
+        "isActive": {
+          "type": "boolean"
+        },
+        "showOnLed": {
+          "type": "boolean"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "symbol",
+        "name",
+        "sector",
+        "startingPrice",
+        "previousClose",
+        "description",
+        "headquarters",
+        "marketCapCr",
+        "isActive",
+        "showOnLed",
+        "updatedAt"
+      ]
+    },
+    "MarketPrice": {
+      "title": "MarketPrice",
+      "description": "Live synchronized stock price, OHLC candles, and trading volume",
+      "type": "object",
+      "properties": {
+        "symbol": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 12,
+          "pattern": "^[A-Z0-9]+$"
+        },
+        "currentPrice": {
+          "type": "number"
+        },
+        "previousClose": {
+          "type": "number"
+        },
+        "dayHigh": {
+          "type": "number"
+        },
+        "dayLow": {
+          "type": "number"
+        },
+        "volume": {
+          "type": "number"
+        },
+        "candles": {
+          "type": "array",
+          "description": "Bounded OHLC candle history (max 40 candles)"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "symbol",
+        "currentPrice",
+        "previousClose",
+        "dayHigh",
+        "dayLow",
+        "volume",
+        "candles",
+        "updatedAt"
+      ]
+    },
+    "MarketSettings": {
+      "title": "MarketSettings",
+      "description": "Global exchange control state, NWS 20 Composite Index, LED board roster, and active breaking news",
+      "type": "object",
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": ["OPEN", "PAUSED", "CLOSED"]
+        },
+        "updateIntervalSec": {
+          "type": "number"
+        },
+        "marketBias": {
+          "type": "string",
+          "enum": ["NEUTRAL", "BULLISH", "BEARISH", "VOLATILE"]
+        },
+        "indexValue": {
+          "type": "number"
+        },
+        "indexPrevClose": {
+          "type": "number"
+        },
+        "indexBaseValue": {
+          "type": "number"
+        },
+        "indexHistory": {
+          "type": "array"
+        },
+        "ledSymbols": {
+          "type": "array"
+        },
+        "activeNews": {
+          "type": "object"
+        },
+        "recentNews": {
+          "type": "array"
+        },
+        "lastTickAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "status",
+        "updateIntervalSec",
+        "marketBias",
+        "indexValue",
+        "indexPrevClose",
+        "indexBaseValue",
+        "indexHistory",
+        "ledSymbols",
+        "updatedAt"
+      ]
+    },
+    "Investor": {
+      "title": "Investor",
+      "description": "Isolated investor account profile (balance may become negative if unpaid brokerage exceeds remaining cash)",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "minLength": 4,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "investorId": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 24,
+          "pattern": "^[A-Z0-9\\-]+$"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 80
+        },
+        "accessCode": {
+          "type": "string",
+          "minLength": 4,
+          "maxLength": 24,
+          "pattern": "^[A-Z0-9\\-]+$"
+        },
+        "accessCodeHash": {
+          "type": "string",
+          "minLength": 64,
+          "maxLength": 64,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "balance": {
+          "type": "number"
+        },
+        "initialBalance": {
+          "type": "number"
+        },
+        "isDisabled": {
+          "type": "boolean"
+        },
+        "lastTxId": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "uid",
+        "investorId",
+        "name",
+        "balance",
+        "initialBalance",
+        "isDisabled",
+        "lastTxId",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "PortfolioHolding": {
+      "title": "PortfolioHolding",
+      "description": "Per-investor stock holding keyed by {uid}_{symbol}",
+      "type": "object",
+      "properties": {
+        "investorUid": {
+          "type": "string",
+          "minLength": 4,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "investorId": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 24
+        },
+        "symbol": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 12,
+          "pattern": "^[A-Z0-9]+$"
+        },
+        "companyName": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 100
+        },
+        "quantity": {
+          "type": "number"
+        },
+        "averageBuyPrice": {
+          "type": "number"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "investorUid",
+        "investorId",
+        "symbol",
+        "companyName",
+        "quantity",
+        "averageBuyPrice",
+        "updatedAt"
+      ]
+    },
+    "Transaction": {
+      "title": "Transaction",
+      "description": "Immutable BUY or SELL order execution record and official trade bill",
+      "type": "object",
+      "properties": {
+        "investorUid": {
+          "type": "string",
+          "minLength": 4,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "investorId": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 24
+        },
+        "investorName": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 80
+        },
+        "symbol": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 12,
+          "pattern": "^[A-Z0-9]+$"
+        },
+        "companyName": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 100
+        },
+        "type": {
+          "type": "string",
+          "enum": ["BUY", "SELL"]
+        },
+        "productType": {
+          "type": "string",
+          "enum": ["DELIVERY", "INTRADAY"]
+        },
+        "quantity": {
+          "type": "number"
+        },
+        "price": {
+          "type": "number"
+        },
+        "totalAmount": {
+          "type": "number"
+        },
+        "brokerageAmount": {
+          "type": "number"
+        },
+        "netAmount": {
+          "type": "number"
+        },
+        "billNumber": {
+          "type": "string",
+          "minLength": 8,
+          "maxLength": 40,
+          "pattern": "^[A-Z0-9\\-]+$"
+        },
+        "clientOrderKey": {
+          "type": "string",
+          "minLength": 8,
+          "maxLength": 64
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "investorUid",
+        "investorId",
+        "investorName",
+        "symbol",
+        "companyName",
+        "type",
+        "productType",
+        "quantity",
+        "price",
+        "totalAmount",
+        "brokerageAmount",
+        "netAmount",
+        "billNumber",
+        "clientOrderKey",
+        "createdAt"
+      ]
+    },
+    "AdminAccount": {
+      "title": "AdminAccount",
+      "description": "Authorized exchange administrator record",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "minLength": 4,
+          "maxLength": 128
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "maxLength": 160
+        },
+        "displayName": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 80
+        },
+        "role": {
+          "type": "string",
+          "enum": ["ADMIN"]
+        },
+        "authType": {
+          "type": "string",
+          "enum": ["GOOGLE", "PASSWORD"]
+        },
+        "passwordHash": {
+          "type": "string",
+          "minLength": 64,
+          "maxLength": 64,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["uid", "email", "displayName", "role", "createdAt"]
+    },
+    "AuditLog": {
+      "title": "AuditLog",
+      "description": "Immutable administrative audit log entry",
+      "type": "object",
+      "properties": {
+        "action": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 80
+        },
+        "details": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 500
+        },
+        "adminUid": {
+          "type": "string",
+          "minLength": 4,
+          "maxLength": 128
+        },
+        "adminEmail": {
+          "type": "string",
+          "maxLength": 160
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["action", "details", "adminUid", "adminEmail", "createdAt"]
+    },
+    "AdminSession": {
+      "title": "AdminSession",
+      "description": "Write-only atomic proof token verifying named Admin Password batches",
+      "type": "object",
+      "properties": {
+        "adminUid": {
+          "type": "string",
+          "minLength": 4,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "passwordHash": {
+          "type": "string",
+          "minLength": 64,
+          "maxLength": 64,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["adminUid", "passwordHash", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "/companies/{companyId}": {
+      "schema": { "$ref": "#/entities/Company" },
+      "description": "Listed Indian companies and metadata"
+    },
+    "/market_prices/{companyId}": {
+      "schema": { "$ref": "#/entities/MarketPrice" },
+      "description": "Live synchronized stock quotes and OHLC candles"
+    },
+    "/market_settings/{settingId}": {
+      "schema": { "$ref": "#/entities/MarketSettings" },
+      "description": "Global market status, NWS 20 Composite Index, LED board roster, and news feed"
+    },
+    "/investors/{investorUid}": {
+      "schema": { "$ref": "#/entities/Investor" },
+      "description": "Investor profile and cash balance isolated per investor UID"
+    },
+    "/portfolios/{holdingId}": {
+      "schema": { "$ref": "#/entities/PortfolioHolding" },
+      "description": "Investor holdings keyed by {uid}_{symbol}"
+    },
+    "/transactions/{txId}": {
+      "schema": { "$ref": "#/entities/Transaction" },
+      "description": "Immutable BUY/SELL order ledger"
+    },
+    "/admin_accounts/{adminUid}": {
+      "schema": { "$ref": "#/entities/AdminAccount" },
+      "description": "Authorized administrator registry"
+    },
+    "/audit_logs/{logId}": {
+      "schema": { "$ref": "#/entities/AuditLog" },
+      "description": "Administrative audit trail"
+    },
+    "/admin_sessions/{sessionId}": {
+      "schema": { "$ref": "#/entities/AdminSession" },
+      "description": "Atomic password-admin verification session proof"
+    }
+  }
+}

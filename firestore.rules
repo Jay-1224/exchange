@@ -1,0 +1,404 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Core Primitives
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerifiedEmail() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isGoogleAdmin() {
+      return isVerifiedEmail() && (
+        request.auth.token.email.lower() in ['ytscom1@gmail.com', 'jay.stud.agrawal@gmail.com'] ||
+        exists(/databases/$(database)/documents/admin_accounts/$(request.auth.uid))
+      );
+    }
+
+    function isActivePasswordAdmin() {
+      return existsAfter(/databases/$(database)/documents/admin_sessions/active)
+        && getAfter(/databases/$(database)/documents/admin_sessions/active).data.updatedAt == request.time
+        && exists(/databases/$(database)/documents/admin_accounts/$(getAfter(/databases/$(database)/documents/admin_sessions/active).data.adminUid))
+        && get(/databases/$(database)/documents/admin_accounts/$(getAfter(/databases/$(database)/documents/admin_sessions/active).data.adminUid)).data.role == 'ADMIN'
+        && get(/databases/$(database)/documents/admin_accounts/$(getAfter(/databases/$(database)/documents/admin_sessions/active).data.adminUid)).data.authType == 'PASSWORD'
+        && get(/databases/$(database)/documents/admin_accounts/$(getAfter(/databases/$(database)/documents/admin_sessions/active).data.adminUid)).data.passwordHash == getAfter(/databases/$(database)/documents/admin_sessions/active).data.passwordHash;
+    }
+
+    function isAdmin() {
+      return isGoogleAdmin() || isActivePasswordAdmin();
+    }
+
+    // Entity Validators
+    function isValidCompany(data) {
+      return data.keys().hasAll([
+        'symbol', 'name', 'sector', 'startingPrice', 'previousClose',
+        'description', 'headquarters', 'marketCapCr', 'isActive', 'showOnLed', 'updatedAt'
+      ])
+      && data.keys().hasOnly([
+        'symbol', 'name', 'sector', 'startingPrice', 'previousClose',
+        'description', 'headquarters', 'marketCapCr', 'isActive', 'showOnLed', 'updatedAt'
+      ])
+      && data.symbol is string && data.symbol.size() >= 2 && data.symbol.size() <= 12 && data.symbol.matches('^[A-Z0-9]+$')
+      && data.name is string && data.name.size() >= 2 && data.name.size() <= 100
+      && data.sector in [
+        'Banking', 'Technology', 'Automobile', 'Energy', 'FMCG',
+        'Healthcare', 'Infrastructure', 'Telecommunications', 'Manufacturing'
+      ]
+      && data.startingPrice is number && data.startingPrice > 0 && data.startingPrice <= 1000000
+      && data.previousClose is number && data.previousClose > 0 && data.previousClose <= 1000000
+      && data.description is string && data.description.size() >= 10 && data.description.size() <= 600
+      && data.headquarters is string && data.headquarters.size() >= 2 && data.headquarters.size() <= 80
+      && data.marketCapCr is number && data.marketCapCr >= 0
+      && data.isActive is bool
+      && data.showOnLed is bool
+      && data.updatedAt is timestamp;
+    }
+
+    function isValidMarketPrice(data) {
+      return data.keys().hasAll([
+        'symbol', 'currentPrice', 'previousClose', 'dayHigh', 'dayLow', 'volume', 'candles', 'updatedAt'
+      ])
+      && data.keys().hasOnly([
+        'symbol', 'currentPrice', 'previousClose', 'dayHigh', 'dayLow', 'volume', 'candles', 'updatedAt'
+      ])
+      && data.symbol is string && data.symbol.size() >= 2 && data.symbol.size() <= 12 && data.symbol.matches('^[A-Z0-9]+$')
+      && data.currentPrice is number && data.currentPrice > 0 && data.currentPrice <= 10000000
+      && data.previousClose is number && data.previousClose > 0 && data.previousClose <= 10000000
+      && data.dayHigh is number && data.dayHigh > 0
+      && data.dayLow is number && data.dayLow > 0
+      && data.volume is number && data.volume >= 0
+      && data.candles is list && data.candles.size() <= 40
+      && (data.candles.size() == 0 || data.candles[0] is map)
+      && data.updatedAt is timestamp;
+    }
+
+    function isValidMarketSettings(data) {
+      return data.keys().hasAll([
+        'status', 'updateIntervalSec', 'marketBias', 'indexValue', 'indexPrevClose',
+        'indexBaseValue', 'indexHistory', 'ledSymbols', 'updatedAt'
+      ])
+      && data.keys().hasOnly([
+        'status', 'updateIntervalSec', 'marketBias', 'indexValue', 'indexPrevClose',
+        'indexBaseValue', 'indexHistory', 'ledSymbols', 'activeNews', 'recentNews', 'lastTickAt', 'updatedAt'
+      ])
+      && data.status in ['OPEN', 'PAUSED', 'CLOSED']
+      && data.updateIntervalSec is number && data.updateIntervalSec >= 3 && data.updateIntervalSec <= 300
+      && data.marketBias in ['NEUTRAL', 'BULLISH', 'BEARISH', 'VOLATILE']
+      && data.indexValue is number && data.indexValue > 0
+      && data.indexPrevClose is number && data.indexPrevClose > 0
+      && data.indexBaseValue is number && data.indexBaseValue > 0
+      && data.indexHistory is list && data.indexHistory.size() <= 60
+      && (data.indexHistory.size() == 0 || data.indexHistory[0] is map)
+      && data.ledSymbols is list && data.ledSymbols.size() <= 15
+      && (data.ledSymbols.size() == 0 || data.ledSymbols[0] is string)
+      && (!('activeNews' in data) || data.activeNews is map)
+      && (!('recentNews' in data) || (data.recentNews is list && data.recentNews.size() <= 12))
+      && (!('lastTickAt' in data) || data.lastTickAt is timestamp)
+      && data.updatedAt is timestamp;
+    }
+
+    function isValidInvestor(data) {
+      return data.keys().hasAll([
+        'uid', 'investorId', 'name', 'balance', 'initialBalance',
+        'isDisabled', 'lastTxId', 'createdAt', 'updatedAt'
+      ])
+      && data.keys().hasOnly([
+        'uid', 'investorId', 'name', 'accessCode', 'accessCodeHash', 'balance', 'initialBalance',
+        'isDisabled', 'lastTxId', 'createdAt', 'updatedAt'
+      ])
+      && isValidId(data.uid)
+      && data.investorId is string && data.investorId.size() >= 3 && data.investorId.size() <= 24 && data.investorId.matches('^[A-Z0-9\\-]+$')
+      && data.name is string && data.name.size() >= 2 && data.name.size() <= 80
+      && (!('accessCode' in data) || (data.accessCode is string && data.accessCode.size() >= 4 && data.accessCode.size() <= 24 && data.accessCode.matches('^[A-Z0-9\\-]+$')))
+      && (!('accessCodeHash' in data) || (data.accessCodeHash is string && data.accessCodeHash.size() == 64 && data.accessCodeHash.matches('^[a-f0-9]{64}$')))
+      && data.balance is number && data.balance >= -100000000 && data.balance <= 1000000000
+      && data.initialBalance is number && data.initialBalance >= 0 && data.initialBalance <= 1000000000
+      && data.isDisabled is bool
+      && data.lastTxId is string && data.lastTxId.size() <= 128
+      && data.createdAt is timestamp
+      && data.updatedAt is timestamp;
+    }
+
+    function isValidPortfolioHolding(data) {
+      return data.keys().hasAll([
+        'investorUid', 'investorId', 'symbol', 'companyName', 'quantity', 'averageBuyPrice', 'updatedAt'
+      ])
+      && data.keys().hasOnly([
+        'investorUid', 'investorId', 'symbol', 'companyName', 'quantity', 'averageBuyPrice', 'updatedAt'
+      ])
+      && isValidId(data.investorUid)
+      && data.investorId is string && data.investorId.size() >= 3 && data.investorId.size() <= 24
+      && data.symbol is string && data.symbol.size() >= 2 && data.symbol.size() <= 12 && data.symbol.matches('^[A-Z0-9]+$')
+      && data.companyName is string && data.companyName.size() >= 2 && data.companyName.size() <= 100
+      && data.quantity is int && data.quantity >= 0 && data.quantity <= 10000000
+      && data.averageBuyPrice is number && data.averageBuyPrice >= 0 && data.averageBuyPrice <= 10000000
+      && data.updatedAt is timestamp;
+    }
+
+    function isValidTransaction(data) {
+      return data.keys().hasAll([
+        'investorUid', 'investorId', 'investorName', 'symbol', 'companyName',
+        'type', 'productType', 'quantity', 'price', 'totalAmount',
+        'brokerageAmount', 'netAmount', 'billNumber', 'clientOrderKey', 'createdAt'
+      ])
+      && data.keys().hasOnly([
+        'investorUid', 'investorId', 'investorName', 'symbol', 'companyName',
+        'type', 'productType', 'quantity', 'price', 'totalAmount',
+        'brokerageAmount', 'netAmount', 'billNumber', 'clientOrderKey', 'createdAt'
+      ])
+      && isValidId(data.investorUid)
+      && data.investorId is string && data.investorId.size() >= 3 && data.investorId.size() <= 24
+      && data.investorName is string && data.investorName.size() >= 2 && data.investorName.size() <= 80
+      && data.symbol is string && data.symbol.size() >= 2 && data.symbol.size() <= 12 && data.symbol.matches('^[A-Z0-9]+$')
+      && data.companyName is string && data.companyName.size() >= 2 && data.companyName.size() <= 100
+      && data.type in ['BUY', 'SELL']
+      && data.productType in ['DELIVERY', 'INTRADAY']
+      && data.quantity is int && data.quantity > 0 && data.quantity <= 1000000
+      && data.price is number && data.price > 0 && data.price <= 10000000
+      && data.totalAmount is number && data.totalAmount > 0 && data.totalAmount <= 1000000000
+      && data.brokerageAmount is number && data.brokerageAmount >= 0 && data.brokerageAmount <= 20
+      && data.netAmount is number && data.netAmount >= 0 && data.netAmount <= 1000000020
+      && data.billNumber is string && data.billNumber.size() >= 8 && data.billNumber.size() <= 40 && data.billNumber.matches('^[A-Z0-9\\-]+$')
+      && data.clientOrderKey is string && data.clientOrderKey.size() >= 8 && data.clientOrderKey.size() <= 64
+      && data.createdAt is timestamp;
+    }
+
+    function isValidAdminAccount(data) {
+      return data.keys().hasAll(['uid', 'email', 'displayName', 'role', 'createdAt'])
+      && data.keys().hasOnly(['uid', 'email', 'displayName', 'role', 'authType', 'passwordHash', 'createdAt'])
+      && isValidId(data.uid)
+      && data.email is string && data.email.size() >= 5 && data.email.size() <= 160
+      && data.displayName is string && data.displayName.size() >= 2 && data.displayName.size() <= 80
+      && data.role == 'ADMIN'
+      && (!('authType' in data) || data.authType in ['GOOGLE', 'PASSWORD'])
+      && (!('passwordHash' in data) || (data.passwordHash is string && data.passwordHash.size() == 64 && data.passwordHash.matches('^[a-f0-9]{64}$')))
+      && data.createdAt is timestamp;
+    }
+
+    function isValidAuditLog(data) {
+      return data.keys().hasAll(['action', 'details', 'adminUid', 'adminEmail', 'createdAt'])
+      && data.keys().hasOnly(['action', 'details', 'adminUid', 'adminEmail', 'createdAt'])
+      && data.action is string && data.action.size() >= 3 && data.action.size() <= 80
+      && data.details is string && data.details.size() >= 2 && data.details.size() <= 500
+      && isValidId(data.adminUid)
+      && data.adminEmail is string && data.adminEmail.size() >= 5 && data.adminEmail.size() <= 160
+      && data.createdAt is timestamp;
+    }
+
+    function isValidAdminSession(data) {
+      return data.keys().hasAll(['adminUid', 'passwordHash', 'updatedAt'])
+      && data.keys().hasOnly(['adminUid', 'passwordHash', 'updatedAt'])
+      && isValidId(data.adminUid)
+      && data.passwordHash is string && data.passwordHash.size() == 64 && data.passwordHash.matches('^[a-f0-9]{64}$')
+      && data.updatedAt is timestamp;
+    }
+
+    // 1. Companies (Public Read, Admin Write)
+    match /companies/{companyId} {
+      allow get: if isValidId(companyId);
+      allow list: if true;
+      allow create: if isAdmin() && isValidId(companyId) && isValidCompany(incoming())
+        && incoming().symbol == companyId && incoming().updatedAt == request.time;
+      allow update: if isAdmin() && isValidId(companyId) && isValidCompany(incoming())
+        && incoming().symbol == existing().symbol && incoming().updatedAt == request.time;
+      allow delete: if isAdmin() && isValidId(companyId);
+    }
+
+    // 2. Market Prices (Public Read, Admin Tick/Override, Atomic Trade Volume Increment)
+    match /market_prices/{companyId} {
+      allow get: if isValidId(companyId);
+      allow list: if true;
+      allow create: if isAdmin() && isValidId(companyId) && isValidMarketPrice(incoming())
+        && incoming().symbol == companyId && incoming().updatedAt == request.time;
+      allow update: if isValidId(companyId) && isValidMarketPrice(incoming()) && (
+        (isAdmin() && incoming().symbol == existing().symbol && incoming().updatedAt == request.time) ||
+        (incoming().diff(existing()).affectedKeys().hasOnly(['volume', 'updatedAt'])
+          && incoming().volume > existing().volume
+          && incoming().volume <= existing().volume + 1000000
+          && incoming().updatedAt == request.time
+          && get(/databases/$(database)/documents/market_settings/global).data.status == 'OPEN')
+      );
+      allow delete: if isAdmin() && isValidId(companyId);
+    }
+
+    // 3. Market Settings (Public Read, Admin Write)
+    match /market_settings/{settingId} {
+      allow get: if isValidId(settingId);
+      allow list: if true;
+      allow create: if isAdmin() && isValidId(settingId) && isValidMarketSettings(incoming())
+        && incoming().updatedAt == request.time;
+      allow update: if isAdmin() && isValidId(settingId) && isValidMarketSettings(incoming())
+        && incoming().updatedAt == request.time;
+      allow delete: if isAdmin() && isValidId(settingId);
+    }
+
+    // 4. Investors (Targeted Lookup by Investor ID, Locked Self-Registration, Atomic Trade Balance Update)
+    match /investors/{investorUid} {
+      allow get: if isValidId(investorUid);
+      allow list: if isAdmin() || resource.data.isDisabled in [false, true];
+      allow create: if isValidId(investorUid) && isValidInvestor(incoming())
+        && incoming().uid == investorUid
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && (
+          isAdmin() ||
+          (!exists(/databases/$(database)/documents/investors/$(investorUid))
+            && incoming().isDisabled == false
+            && incoming().lastTxId == ''
+            && incoming().initialBalance == 100000
+            && incoming().balance == 100000)
+        );
+      allow update: if isValidId(investorUid) && isValidInvestor(incoming()) && (
+        (isAdmin()
+          && incoming().uid == existing().uid
+          && incoming().createdAt == existing().createdAt
+          && incoming().updatedAt == request.time) ||
+        (existing().isDisabled == false
+          && incoming().diff(existing()).affectedKeys().hasOnly(['balance', 'lastTxId', 'updatedAt'])
+          && incoming().uid == existing().uid
+          && incoming().investorId == existing().investorId
+          && incoming().name == existing().name
+          && incoming().initialBalance == existing().initialBalance
+          && incoming().isDisabled == existing().isDisabled
+          && incoming().createdAt == existing().createdAt
+          && incoming().updatedAt == request.time
+          && incoming().lastTxId != existing().lastTxId
+          && incoming().lastTxId.size() > 0
+          && getAfter(/databases/$(database)/documents/transactions/$(incoming().lastTxId)).data.investorUid == investorUid
+          && (
+            (getAfter(/databases/$(database)/documents/transactions/$(incoming().lastTxId)).data.type == 'BUY'
+              && existing().balance >= getAfter(/databases/$(database)/documents/transactions/$(incoming().lastTxId)).data.totalAmount
+              && math.abs((existing().balance - incoming().balance) - getAfter(/databases/$(database)/documents/transactions/$(incoming().lastTxId)).data.netAmount) <= 0.1) ||
+            (getAfter(/databases/$(database)/documents/transactions/$(incoming().lastTxId)).data.type == 'SELL'
+              && math.abs((incoming().balance - existing().balance) - getAfter(/databases/$(database)/documents/transactions/$(incoming().lastTxId)).data.netAmount) <= 0.1)
+          ))
+      );
+      allow delete: if isAdmin() && isValidId(investorUid);
+    }
+
+    // 5. Portfolios (Keyed by {uid}_{symbol}, Atomic Lock to Investor Trade)
+    match /portfolios/{holdingId} {
+      allow get: if isValidId(holdingId);
+      allow list: if isAdmin() || resource.data.investorUid is string || resource.data.quantity >= 0;
+      allow create: if isValidId(holdingId) && isValidPortfolioHolding(incoming()) && (
+        isAdmin() ||
+        (holdingId == incoming().investorUid + '_' + incoming().symbol
+          && incoming().quantity > 0
+          && incoming().updatedAt == request.time
+          && get(/databases/$(database)/documents/investors/$(incoming().investorUid)).data.isDisabled == false
+          && getAfter(/databases/$(database)/documents/investors/$(incoming().investorUid)).data.lastTxId != get(/databases/$(database)/documents/investors/$(incoming().investorUid)).data.lastTxId
+          && getAfter(/databases/$(database)/documents/transactions/$(getAfter(/databases/$(database)/documents/investors/$(incoming().investorUid)).data.lastTxId)).data.createdAt == request.time
+          && getAfter(/databases/$(database)/documents/transactions/$(getAfter(/databases/$(database)/documents/investors/$(incoming().investorUid)).data.lastTxId)).data.symbol == incoming().symbol)
+      );
+      allow update: if isValidId(holdingId) && isValidPortfolioHolding(incoming()) && (
+        isAdmin() ||
+        (holdingId == existing().investorUid + '_' + existing().symbol
+          && incoming().investorUid == existing().investorUid
+          && incoming().investorId == existing().investorId
+          && incoming().symbol == existing().symbol
+          && incoming().updatedAt == request.time
+          && get(/databases/$(database)/documents/investors/$(existing().investorUid)).data.isDisabled == false
+          && getAfter(/databases/$(database)/documents/investors/$(existing().investorUid)).data.lastTxId != get(/databases/$(database)/documents/investors/$(existing().investorUid)).data.lastTxId
+          && getAfter(/databases/$(database)/documents/transactions/$(getAfter(/databases/$(database)/documents/investors/$(existing().investorUid)).data.lastTxId)).data.createdAt == request.time
+          && getAfter(/databases/$(database)/documents/transactions/$(getAfter(/databases/$(database)/documents/investors/$(existing().investorUid)).data.lastTxId)).data.symbol == existing().symbol)
+      );
+      allow delete: if isAdmin() && isValidId(holdingId);
+    }
+
+    // 6. Transactions (Immutable Ledger, Authoritative Price & Atomic Portfolio Lock)
+    match /transactions/{txId} {
+      allow get: if isValidId(txId);
+      allow list: if isAdmin() || resource.data.investorUid is string || resource.data.type in ['BUY', 'SELL'];
+      allow create: if isValidId(txId) && isValidTransaction(incoming())
+        && incoming().createdAt == request.time
+        && get(/databases/$(database)/documents/investors/$(incoming().investorUid)).data.isDisabled == false
+        && getAfter(/databases/$(database)/documents/investors/$(incoming().investorUid)).data.lastTxId == txId
+        && get(/databases/$(database)/documents/market_settings/global).data.status == 'OPEN'
+        && get(/databases/$(database)/documents/companies/$(incoming().symbol)).data.isActive == true
+        && math.abs(incoming().price - get(/databases/$(database)/documents/market_prices/$(incoming().symbol)).data.currentPrice) <= 0.1
+        && math.abs(incoming().totalAmount - (incoming().quantity * incoming().price)) <= 0.1
+        && (
+          (incoming().productType == 'DELIVERY' && incoming().brokerageAmount == 0) ||
+          (incoming().productType == 'INTRADAY' && (
+            (incoming().totalAmount * 0.0005 >= 20 && math.abs(incoming().brokerageAmount - 20) <= 0.1) ||
+            (incoming().totalAmount * 0.0005 < 20 && math.abs(incoming().brokerageAmount - (incoming().totalAmount * 0.0005)) <= 0.1)
+          ))
+        )
+        && (
+          (incoming().type == 'BUY'
+            && math.abs(incoming().netAmount - (incoming().totalAmount + incoming().brokerageAmount)) <= 0.1
+            && get(/databases/$(database)/documents/investors/$(incoming().investorUid)).data.balance >= incoming().totalAmount
+            && (
+              (!exists(/databases/$(database)/documents/portfolios/$(incoming().investorUid + '_' + incoming().symbol))
+                && getAfter(/databases/$(database)/documents/portfolios/$(incoming().investorUid + '_' + incoming().symbol)).data.quantity == incoming().quantity) ||
+              (exists(/databases/$(database)/documents/portfolios/$(incoming().investorUid + '_' + incoming().symbol))
+                && getAfter(/databases/$(database)/documents/portfolios/$(incoming().investorUid + '_' + incoming().symbol)).data.quantity == get(/databases/$(database)/documents/portfolios/$(incoming().investorUid + '_' + incoming().symbol)).data.quantity + incoming().quantity)
+            )) ||
+          (incoming().type == 'SELL'
+            && math.abs(incoming().netAmount - (incoming().totalAmount - incoming().brokerageAmount)) <= 0.1
+            && exists(/databases/$(database)/documents/portfolios/$(incoming().investorUid + '_' + incoming().symbol))
+            && get(/databases/$(database)/documents/portfolios/$(incoming().investorUid + '_' + incoming().symbol)).data.quantity >= incoming().quantity
+            && getAfter(/databases/$(database)/documents/portfolios/$(incoming().investorUid + '_' + incoming().symbol)).data.quantity == get(/databases/$(database)/documents/portfolios/$(incoming().investorUid + '_' + incoming().symbol)).data.quantity - incoming().quantity)
+        );
+      allow update: if false;
+      allow delete: if isAdmin() && isValidId(txId);
+    }
+
+    // 7. Admin Accounts (Exact ID Lookup for Named Password Login, Authorized Admin Write)
+    match /admin_accounts/{adminUid} {
+      allow get: if isValidId(adminUid);
+      allow list: if isAdmin() || resource.data.role == 'ADMIN';
+      allow create: if isAdmin() && isValidId(adminUid) && isValidAdminAccount(incoming())
+        && incoming().uid == adminUid && incoming().createdAt == request.time;
+      allow update: if false;
+      allow delete: if isValidId(adminUid) && (
+        (isGoogleAdmin() && adminUid != request.auth.uid) ||
+        (isActivePasswordAdmin() && adminUid != getAfter(/databases/$(database)/documents/admin_sessions/active).data.adminUid)
+      );
+    }
+
+    // 8. Audit Logs (Immutable, Admin Read & Append Only)
+    match /audit_logs/{logId} {
+      allow get: if isValidId(logId);
+      allow list: if isAdmin() || resource.data.action >= '';
+      allow create: if isValidId(logId) && isValidAuditLog(incoming())
+        && incoming().createdAt == request.time
+        && (
+          (isGoogleAdmin() && incoming().adminUid == request.auth.uid) ||
+          (isActivePasswordAdmin() && incoming().adminUid == getAfter(/databases/$(database)/documents/admin_sessions/active).data.adminUid)
+        );
+      allow update, delete: if false;
+    }
+
+    // 9. Admin Sessions (Write-Only Atomic Proof Token for Named Password Admins)
+    match /admin_sessions/{sessionId} {
+      allow get, list, delete: if false;
+      allow create, update: if sessionId == 'active'
+        && isValidAdminSession(incoming())
+        && incoming().updatedAt == request.time
+        && exists(/databases/$(database)/documents/admin_accounts/$(incoming().adminUid))
+        && get(/databases/$(database)/documents/admin_accounts/$(incoming().adminUid)).data.role == 'ADMIN'
+        && get(/databases/$(database)/documents/admin_accounts/$(incoming().adminUid)).data.authType == 'PASSWORD'
+        && get(/databases/$(database)/documents/admin_accounts/$(incoming().adminUid)).data.passwordHash == incoming().passwordHash;
+    }
+  }
+}
